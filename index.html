@@ -274,7 +274,7 @@ async function start(){
   if(typeof DeviceMotionEvent.requestPermission === 'function'){
     try{
       const p = await DeviceMotionEvent.requestPermission();
-      if(p !== 'granted'){ errEl.textContent = 'Motion access was denied. Close the tab, reopen the page, and tap Allow.'; return; }
+      if(p !== 'granted'){ errEl.textContent = 'Motion access was denied. Fully close the app or tab, reopen it, and tap Allow.'; return; }
     }catch(e){ errEl.textContent = 'Motion access is blocked in this view. Open the page directly in Safari on your phone.'; return; }
   }
   resetMotion(); sizePov(); running = true;
@@ -292,6 +292,12 @@ function stop(){
 document.getElementById('go').addEventListener('click', start);
 pov.addEventListener('click', e=>{ if(e.target === exitBtn) return; exitBtn.style.display = 'block'; clearTimeout(exitTimer); exitTimer = setTimeout(()=>{ exitBtn.style.display='none'; }, 3000); });
 exitBtn.addEventListener('click', stop);
+// The OS drops the wake lock when the app is backgrounded; take it back on return.
+document.addEventListener('visibilitychange', async ()=>{
+  if(running && document.visibilityState === 'visible' && navigator.wakeLock){
+    try{ wakeLock = await navigator.wakeLock.request('screen'); }catch(e){}
+  }
+});
 
 /* ---------- boot ---------- */
 syncPressed();
