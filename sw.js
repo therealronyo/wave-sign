@@ -19,7 +19,9 @@ self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
 
 self.addEventListener('fetch', (e) => {
   const req = e.request;
-  if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
+  const host = new URL(req.url).hostname;
+  const fonts = host === 'fonts.googleapis.com' || host === 'fonts.gstatic.com';
+  if (req.method !== 'GET' || (new URL(req.url).origin !== location.origin && !fonts)) return;
   e.respondWith(
     fetch(req)
       .then((res) => {
