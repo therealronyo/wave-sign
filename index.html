@@ -122,7 +122,10 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 
 <script>
 (function(){
-const ROWS = 32;
+const SRC = 32;          // drawing grid: icons and font are designed at this height
+const SCALE = 2;         // shrink factor for the light display
+const ROWS = SRC/SCALE;  // 16 rows: half the columns, so a sweep can show them all
+const MAX_COLS = 45;     // roughly what one sweep shows at 60 frames/s
 const COLORS = ['#FFFFFF','#FFC857','#4DE8FF','#FF4FA3','#6CFF8F','rainbow'];
 const COLOR_NAMES = ['White','Amber','Cyan','Pink','Green','Rainbow'];
 const state = {text:'HI', icon:'heart', color:'#FFC857', strip:16, flip:false};
@@ -155,14 +158,25 @@ function buildBitmap(){
   const tw = t ? Math.ceil(x.measureText(t).width) : 0;
   const iw = ICONS[state.icon] ? 32 : 0, gap = (iw && tw) ? 6 : 0, pad = 3;
   const w = Math.max(8, pad*2 + iw + gap + tw);
-  c.width = w; c.height = ROWS;
+  c.width = w; c.height = SRC;
   x.font = font; x.fillStyle = '#fff'; x.strokeStyle = '#fff'; x.textBaseline = 'middle'; x.textAlign = 'left';
   if(iw){ x.save(); x.translate(pad,0); ICONS[state.icon](x); x.restore(); }
-  if(tw){ x.direction = /[\u0590-\u05FF\u0600-\u06FF]/.test(t) ? 'rtl' : 'ltr'; x.textAlign='left'; x.fillText(t, pad+iw+gap, ROWS/2+1.5); }
-  const d = x.getImageData(0,0,w,ROWS).data;
+  if(tw){ x.direction = /[\u0590-\u05FF\u0600-\u06FF]/.test(t) ? 'rtl' : 'ltr'; x.textAlign='left'; x.fillText(t, pad+iw+gap, SRC/2+1.5); }
+  const d = x.getImageData(0,0,w,SRC).data;
+  // Average each SCALE x SCALE block of the drawing into one light.
+  cols = Math.ceil(w/SCALE);
   bitmap = [];
-  for(let i=0;i<w;i++){ const col = new Uint8Array(ROWS); for(let y=0;y<ROWS;y++) col[y] = d[(y*w+i)*4+3] > 110 ? 1 : 0; bitmap.push(col); }
-  cols = w;
+  for(let i=0;i<cols;i++){
+    const col = new Uint8Array(ROWS);
+    for(let y=0;y<ROWS;y++){
+      let sum = 0;
+      for(let dx=0;dx<SCALE;dx++) for(let dy=0;dy<SCALE;dy++){
+        const sx = i*SCALE+dx; if(sx < w) sum += d[((y*SCALE+dy)*w+sx)*4+3];
+      }
+      col[y] = sum/(SCALE*SCALE) > 110 ? 1 : 0;
+    }
+    bitmap.push(col);
+  }
   renderPreview();
 }
 function colorFor(i){ return state.color==='rainbow' ? `hsl(${Math.round(i/cols*330)},100%,62%)` : state.color; }
@@ -171,7 +185,7 @@ function colorFor(i){ return state.color==='rainbow' ? `hsl(${Math.round(i/cols*
 const pv = document.getElementById('preview');
 function renderPreview(){
   const board = pv.parentElement, avail = board.clientWidth - 24;
-  const dot = Math.max(4, Math.min(12, Math.floor(avail/cols)));
+  const dot = Math.max(4, Math.min(20, Math.floor(avail/cols)));
   const dpr = window.devicePixelRatio || 1;
   pv.style.width = cols*dot+'px'; pv.style.height = ROWS*dot+'px';
   pv.width = cols*dot*dpr; pv.height = ROWS*dot*dpr;
@@ -180,7 +194,7 @@ function renderPreview(){
     c.fillStyle = bitmap[i][y] ? colorFor(i) : '#16182c';
     c.beginPath(); c.arc(i*dot+dot/2, y*dot+dot/2, dot*0.38, 0, Math.PI*2); c.fill();
   }
-  document.getElementById('cols').textContent = cols > 70
+  document.getElementById('cols').textContent = cols > MAX_COLS
     ? `${cols} columns. That’s long, so letters may look squeezed. Try fewer characters.`
     : `${cols} columns`;
 }
