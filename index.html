@@ -158,7 +158,7 @@ function buildBitmap(){
   c.width = w; c.height = ROWS;
   x.font = font; x.fillStyle = '#fff'; x.strokeStyle = '#fff'; x.textBaseline = 'middle'; x.textAlign = 'left';
   if(iw){ x.save(); x.translate(pad,0); ICONS[state.icon](x); x.restore(); }
-  if(tw){ x.direction = /[֐-׿؀-ۿ]/.test(t) ? 'rtl' : 'ltr'; x.textAlign='left'; x.fillText(t, pad+iw+gap, ROWS/2+1.5); }
+  if(tw){ x.direction = /[\u0590-\u05FF\u0600-\u06FF]/.test(t) ? 'rtl' : 'ltr'; x.textAlign='left'; x.fillText(t, pad+iw+gap, ROWS/2+1.5); }
   const d = x.getImageData(0,0,w,ROWS).data;
   bitmap = [];
   for(let i=0;i<w;i++){ const col = new Uint8Array(ROWS); for(let y=0;y<ROWS;y++) col[y] = d[(y*w+i)*4+3] > 110 ? 1 : 0; bitmap.push(col); }
