@@ -291,6 +291,10 @@ async function start(){
       if(p !== 'granted'){ errEl.textContent = 'Motion access was denied. Fully close the app or tab, reopen it, and tap Allow.'; return; }
     }catch(e){ errEl.textContent = 'Motion access is blocked in this view. Open the page directly in Safari on your phone.'; return; }
   }
+  // iOS treats shaking as "undo typing". Leave the text box and wipe its undo
+  // history (a value set from code clears it), and lock it while waving.
+  if(document.activeElement) document.activeElement.blur();
+  textEl.value = state.text; textEl.disabled = true;
   resetMotion(); sizePov(); running = true;
   pov.style.display = 'block'; povMsg.textContent = 'Wave side to side'; povMsg.style.display = 'block';
   window.addEventListener('devicemotion', onMotion);
@@ -300,6 +304,7 @@ async function start(){
 }
 function stop(){
   running = false; pov.style.display = 'none'; exitBtn.style.display = 'none';
+  textEl.disabled = false;
   window.removeEventListener('devicemotion', onMotion);
   try{ if(wakeLock) wakeLock.release(); }catch(e){} wakeLock = null;
 }
