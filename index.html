@@ -53,6 +53,7 @@ input[type=text]:focus-visible{outline:2px solid var(--accent);outline-offset:2p
 .chip{width:52px;height:52px;border-radius:14px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);display:grid;place-items:center;cursor:pointer;padding:0;font:inherit}
 .chip[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
 .chip:focus-visible,.go:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.pill{width:auto;padding:0 18px;font-weight:600}
 .swatch{border-radius:50%;width:44px;height:44px;border:2px solid var(--line);cursor:pointer;padding:0}
 .swatch[aria-pressed="true"]{box-shadow:0 0 0 3px var(--bg),0 0 0 5px var(--accent)}
 .rainbow{background:conic-gradient(#ff4f4f,#ffc857,#6cff8f,#4de8ff,#8b7bff,#ff4fa3,#ff4f4f)}
@@ -94,6 +95,18 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   </div>
 
   <div class="field">
+    <span class="lbl">Display style</span>
+    <div class="row" id="modes"></div>
+    <p class="hint" id="modehint"></p>
+  </div>
+
+  <div class="field" id="spanField">
+    <label for="span">Letter speed</label>
+    <input id="span" type="range" min="3" max="20" step="0.5" value="8">
+    <p class="hint">If the letters smear or wobble while you wave, move this until they stand still in the air.</p>
+  </div>
+
+  <div class="field" id="stripField">
     <label for="strip">Light strip width</label>
     <input id="strip" type="range" min="4" max="40" value="16">
     <p class="hint">Narrow is sharper, wide is brighter.</p>
@@ -128,7 +141,7 @@ const ROWS = SRC/SCALE;  // 16 rows: half the columns, so a sweep can show them 
 const MAX_COLS = 45;     // roughly what one sweep shows at 60 frames/s
 const COLORS = ['#FFFFFF','#FFC857','#4DE8FF','#FF4FA3','#6CFF8F','rainbow'];
 const COLOR_NAMES = ['White','Amber','Cyan','Pink','Green','Rainbow'];
-const state = {text:'HI', icon:'heart', color:'#FFC857', strip:16, flip:false};
+const state = {text:'HI', icon:'heart', color:'#FFC857', strip:16, flip:false, mode:'window', span:8};
 try{ const s = JSON.parse(localStorage.getItem('wavesign')||'null'); if(s) Object.assign(state,s); }catch(e){}
 function save(){ try{ localStorage.setItem('wavesign', JSON.stringify(state)); }catch(e){} }
 
@@ -232,6 +245,25 @@ function syncPressed(){
 }
 const stripEl = document.getElementById('strip'); stripEl.value = state.strip;
 stripEl.addEventListener('input', ()=>{ state.strip = +stripEl.value; save(); });
+const MODES = {
+  window:{label:'Window', hint:'The whole screen shows a slice of the message that stays still in the air as you wave. Easier to read.'},
+  strip:{label:'Strip', hint:'One thin column at a time, like a classic light stick. Needs fast waving in a dark room.'}
+};
+const modeRow = document.getElementById('modes');
+Object.keys(MODES).forEach(k=>{
+  const b = document.createElement('button'); b.className = 'chip pill'; b.type = 'button';
+  b.textContent = MODES[k].label; b.dataset.mode = k;
+  b.addEventListener('click', ()=>{ state.mode = k; save(); syncMode(); });
+  modeRow.appendChild(b);
+});
+function syncMode(){
+  modeRow.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed', b.dataset.mode===state.mode));
+  document.getElementById('modehint').textContent = MODES[state.mode].hint;
+  document.getElementById('spanField').hidden = state.mode !== 'window';
+  document.getElementById('stripField').hidden = state.mode !== 'strip';
+}
+const spanEl = document.getElementById('span'); spanEl.value = state.span;
+spanEl.addEventListener('input', ()=>{ state.span = +spanEl.value; save(); });
 const flipEl = document.getElementById('flip'); flipEl.checked = state.flip;
 flipEl.addEventListener('change', ()=>{ state.flip = flipEl.checked; save(); });
 window.addEventListener('resize', ()=>{ renderPreview(); sizePov(); });
@@ -275,6 +307,23 @@ function frame(){
   const a = m.angle + m.omega*((performance.now() - m.lastEvent)/1000 + LEAD);
   let u = (a - m.lo)/(m.hi - m.lo);
   u = (u - MARGIN)/(1 - 2*MARGIN);
+  if(state.mode === 'window'){
+    // The message is laid out along the middle of the swing. The screen is a
+    // window onto it: it shows the columns in front of it right now, shifted
+    // against the phone's motion so the letters stay put in the air.
+    if(state.flip) u = 1 - u;
+    const usable = (m.hi - m.lo)*(1 - 2*MARGIN);      // degrees the message spans
+    const winCols = Math.max(1, cols*state.span/usable); // columns that fit on screen
+    const colPx = W/winCols, rh = H/ROWS, centre = u*cols;
+    const j0 = Math.max(0, Math.floor(centre - winCols/2 - 1));
+    const j1 = Math.min(cols - 1, Math.ceil(centre + winCols/2 + 1));
+    for(let j=j0;j<=j1;j++){
+      const x = W/2 + (j - centre)*colPx, col = bitmap[j];
+      ctx.fillStyle = colorFor(j);
+      for(let y=0;y<ROWS;y++) if(col[y]) ctx.fillRect(x + colPx*0.05, y*rh + rh*0.05, colPx*0.9, rh*0.9);
+    }
+    return;
+  }
   if(u < 0 || u >= 1) return;
   if(state.flip) u = 1 - u;
   const i = Math.min(cols-1, Math.floor(u*cols)), col = bitmap[i];
@@ -320,6 +369,7 @@ document.addEventListener('visibilitychange', async ()=>{
 
 /* ---------- boot ---------- */
 syncPressed();
+syncMode();
 buildBitmap();
 if(document.fonts && document.fonts.load) document.fonts.load('900 29px Rubik').then(buildBitmap).catch(()=>{});
 if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
